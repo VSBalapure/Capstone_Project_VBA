@@ -1,0 +1,12 @@
+name: ngram_match
+title: ngram_match
+username:
+account: vishalbalapure
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 363018
+bundleId: 1437126
+url: https://vishalbalapure.shinyapps.io/ngram_match/
+when: 1529407009.01008
+asMultiple: FALSE
+asStatic: FALSE

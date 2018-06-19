@@ -1,0 +1,180 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+Coursera Data Science Capstone Project
+
+
+Introduction
+
+In order to answer the questions of Quiz 2 to Week 3 will be used: >the grepl() command READING ALL DOCUMENTS from the three files from SwiftKey, >extract the documents that contains the group of words searched, >extract the words around the nuclear group of word searched >process this final extract to eliminate extra blanks, punctuation, words like preposition, articles >extract the word that results as complimente of the initial group of words. In this group of words we should find one of the options offered for each question in the quiz.
+
+```{r}
+library(stringr)
+library(stringi)
+library(tm)
+library(wordcloud)
+library(ggplot2)
+
+setwd("C:/Vishal/Coursera/Milestone_Project/final/en_US")
+
+#Select ALL DOCUMENTS in Blogs
+allBlogs <- readLines("en_US.blogs.txt")
+#Select ALL DOCUMENTS in News
+allNews <- readLines("en_US.news.txt")
+#Select ALL DOCUMENTS in Twitters
+allTwitter <- readLines("en_US.twitter.txt")
+
+summary(allBlogs)
+summary(allNews)
+summary(allTwitter)
+
+tokenmaker <- function(x) {
+        corpus <- Corpus(VectorSource(x))
+        corpus <- tm_map(corpus, content_transformer(tolower))
+        corpus <- tm_map(corpus, removePunctuation)
+        corpus <- tm_map(corpus, stripWhitespace)
+        corpus <- tm_map(corpus, removeWords, stopwords("english"))
+        corpus <- tm_map(corpus, removeNumbers)
+        corpus <- tm_map(corpus, PlainTextDocument)
+#        corpus <- tm_map(corpus, stemDocument)
+        corpus <- Corpus(VectorSource(corpus))
+}  
+
+wordcounter <- function(x) {
+        dtm<-DocumentTermMatrix(x)
+        dtm_matrix <- as.matrix(dtm)
+        word_freq <- colSums(dtm_matrix)
+        word_freq <- sort(word_freq, decreasing = TRUE)
+        words <- names(word_freq)
+        return(list(words, word_freq))
+}  
+
+NextWordIs <- function(x,y){
+        BQuest<-grepl(x, allBlogs, ignore.case=TRUE)
+        BDocs<-allBlogs[BQuest]
+        textoachado<-'a'
+        NextWordIs<-'a'
+        i<-length(BDocs)
+        if (i>0)
+                {
+                for (i in 1:i)
+                {  textoachado[i]<- str_extract(BDocs[i], y)
+                NextWordIs[i]<- stri_extract_last_words(textoachado[i]) 
+                }
+                }
+        NQuest<-grepl(x, allNews, ignore.case=TRUE)
+        NDocs<-allNews[NQuest]
+        j=length(NDocs)
+        if (j>0)
+                {
+                for (j in 1:j)
+                {  textoachado[i+j]<- str_extract(NDocs[j], y)
+                NextWordIs[i+j]<- stri_extract_last_words(textoachado[i+j]) 
+                }
+                }
+        TQuest<-grepl(x, allTwitter, ignore.case=TRUE)
+        TDocs<-allTwitter[TQuest]
+        k=length(TDocs)
+        if (k>0)
+                {
+                for (k in 1:k)
+                {  textoachado[i+j+k]<- str_extract(TDocs[k], y)
+                NextWordIs[i+j+k]<- stri_extract_last_words(textoachado[i+j+k]) 
+                }
+                }
+        bundle<-as.data.frame(NextWordIs, stringsAsFactors=FALSE)
+        summary (bundle)
+        blogs_token <- tokenmaker(bundle)
+        blogs_words <- wordcounter(blogs_token)
+        summary(nchar(bundle))
+        head(bundle)
+        tdm_Blogs<-TermDocumentMatrix(blogs_token)
+        m_Blogs<-as.matrix(tdm_Blogs)
+        v_Blogs<-sort(rowSums(m_Blogs),decreasing=TRUE)
+        d_Blogs<-data.frame(word=names(v_Blogs),freq=v_Blogs)
+        head(v_Blogs, 100)    
+        return(list(head(v_Blogs,100)))
+}
+
+```
+
+Q1
+```{R}
+resultado_01<-NextWordIs("Guy at my table's wife got up to go to the bathroom and I asked about dessert and he started telling me about his" )
+resultado_01
+```
+Question 1 answer: the word beer came as the most present word and make sense in the phrase.
+
+Q2
+```{R}
+resultado_02<-NextWordIs("would mean the ", "([Ww]ould+ +[Mm]ean+ +[Tt]he+ +[^ ]+ )" )  
+resultado_02
+```
+Question 2 answer: here too, one word came as the most present after "would mean the" and that is world, that make sense in the phrase.
+Q3
+```{R}
+resultado_03<-NextWordIs("make me the ", "([Mm]ake+ +[Mm]e+ +[Tt]he+ +[^ ]+ )" )  
+resultado_03
+```
+Question 3 answer: here too, one word came as the most present after "make me the" and that is happiest, that make sense in the phrase.
+
+```{R}
+resultado_04<-NextWordIs("struggling ", "([Ss]truggling+ +[^ ]+ +[^ ]+ +[^ ]+ )" )  
+resultado_04
+
+resultado_04a<-NextWordIs("struggling ", "([Ss]truggling+ +[^ ]+ +[^ ]+ )" )  
+resultado_04a
+
+resultado_04b<-NextWordIs("struggling ", "([Ss]truggling+ +[^ ]+ )" )  
+resultado_04b
+```
+Question 4 answer: first big problem.. There is no sequence "struggling but the" in whole corpus. Work with strugglin and any other 3, 2 and 1 words in sequence, do not create any corpus with the words from Question 4. Includding three more files of News from Reuters and news from sports did not get better. So the word defense was selected only for the sense it makes in the phrase.
+
+Q5
+```{r}
+resultado_05<-NextWordIs("date at the ", "([Dd]ate+ +[Aa]t+ +[Tt]he+ +[^ ]+ )" )  
+resultado_05
+```
+Question 5 answer: second problem. There is only one occurence of "date at the" in whole documents at corpus where the following word is at the list of question 5. It is the word grocery that occurs only once. But that was not the right answer. The right was beach, a logical choice.
+
+Q6
+```{R}
+resultado_06<-NextWordIs("be on my ", "([Bb]e+ +[Oo]n+ +[Mm]y+ +[^ ]+ )" )  
+resultado_06
+```
+Question 6 answer: The word that came as the most present after "be on my" was way, that make sense in the phrase.
+
+Q7
+```{r}
+resultado_07<-NextWordIs("quite some ", "([Qq]uite+ +[Ss]ome+ +[^ ]+ )" )  
+resultado_07  
+```
+Question 7 answer: The word that came as the most present after "quite some" was time, that make sense in the phrase.
+
+Q8
+```{r}
+resultado_08<-NextWordIs("his little ", "([Hh]is+ +[Ll]ittle+ +[^ ]+ )" )  
+resultado_08 
+```
+Question 8 answer: Two words from the list for question 8 was founs as the most present after "quite some" that are fingers with 4 occurences and eyes with 3, both makes sense in the phrase and the correct was fingers
+
+Q9
+```{r}
+resultado_09<-NextWordIs("during the ", "([Dd]uring+ +[TT]he+ +[^ ]+ )" )  
+resultado_09  
+```
+Question 9 answer: The only word in the corpus that are at the list is bad with 4 occurences but there were a lot of other words so bad is not a principal component.
+
+Q10
+```{r}
+resultado_10<-NextWordIs("must be ",  "([Mm]ust+ +[Bb]e+ +[^ ]+ )" )  
+resultado_10 
+```
+Question 10 answer: Like other questions, there is no sequence for "must be" with any of the four words offered in the question. So the word insane was selected only for the sense it makes in the phrase, by common sense.
+
+Thanks for reading.
+

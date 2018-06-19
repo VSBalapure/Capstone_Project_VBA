@@ -1,0 +1,155 @@
+---
+title: "Coursera Capstone Project - Milestone Report"
+author: "Vishal Balapure"
+date: "June 11, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE)
+library(stringi)
+```
+
+#Summary
+This report presents some basic exploratory analysis made for the Milestone Report Submission in the Data Science Capstone course by Johns Hopkins at Coursera. The course objective is to apply data science in the area of natural language processing. The final result of the course will be to construct a Shiny application that accepts some text inputed by the user and try to predict what the next word will be. As start the course have provided a set of files containing texts extracted from blogs, news/media sites and twitter, to be used as a input in the creation of a prediction algorithm. In the next sessions we will be analyzing a subset of the data provided 
+
+#DATA
+The data provided in the course site comprises four sets of files (de_DE - Danish, en_US - English,fi_FI - Finnish an ru_RU - Russian), with each set containing 3 text files with texts from blogs, news/media sites and twitter. In this analysis we will focus english set of files: . en_US.blogs.txt . en_US.news.txt . en_US.twitter.txt
+
+```{R}
+setwd("C:/Vishal/Coursera/Milestone_Project/final/en_US")
+# Read files into variables
+newsData <- readLines(file("en_US.news.txt"))
+blogData <- readLines(file("en_US.blogs.txt"))
+twitterData <- readLines(file("en_US.twitter.txt"))
+
+print(paste("News Data Length = ", length(newsData),
+            ", News Blog Length = ", length(blogData),
+            ", News twitter Length = ", length(twitterData)
+            ))
+
+# Get file sizes
+blogData.size <- file.info("en_US.blogs.txt")$size / 1024 ^ 2
+newsData.size <- file.info("en_US.news.txt")$size / 1024 ^ 2
+twitterData.size <- file.info("en_US.twitter.txt")$size / 1024 ^ 2
+
+# Get words in files
+blogData.words <- stri_count_words(blogData)
+newsData.words <- stri_count_words(newsData)
+twitterData.words <- stri_count_words(twitterData)
+
+# Summary of the data sets
+data.frame(source = c("blogs", "news", "twitter"),
+           file.size.MB = c(blogData.size, newsData.size, twitterData.size),
+           num.lines = c(length(blogData), length(newsData), length(twitterData)),
+           num.words = c(sum(blogData.words), sum(newsData.words), sum(twitterData.words)),
+           mean.num.words = c(mean(blogData.words), mean(newsData.words), mean(twitterData.words)))
+```
+
+#Key findings
+
+.The files are huge and processing then takes time, what means that we have to find ways to process then wisely in memory
+
+.Looking at the statistics of the 3 files, we assume that we can join then without loosing any caracteristic of each one.
+
+.With a vocabulary of 1% of the total number of words we can predict 91% of the text.
+
+#Build a merged corpus
+
+Data from the 3 files are merged together and a text corpus is built using the tm library. For performance reasons, only the first 5000 lines are loaded for the purpose of this milestone report
+
+```{r}
+library(tm)
+#Load 5000 lines from every set in corpus
+merged <- paste(newsData[1:5000], blogData[1:5000], twitterData[1:5000])
+corpus <- VCorpus(VectorSource(merged))
+corpus <- tm_map(corpus, stripWhitespace)
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, removeWords, stopwords())
+```
+
+#Find n-grams on the data
+
+The following code contains a function that would build a n-gram data frame based on the RWeka library. This library is used to build 2-gram, 3-gram and 4-gram models. The top 100 word sequences is only used.
+
+```{R}
+library(RWeka)
+
+corpusDf <-data.frame(text=unlist(sapply(corpus, 
+                  `[`, "content")), stringsAsFactors=F)
+
+findNGrams <- function(corp, grams) {
+  ngram <- NGramTokenizer(corp, Weka_control(min = grams, max = grams,
+                      delimiters = " \\r\\n\\t.,;:\"()?!"))
+  ngram2 <- data.frame(table(ngram))
+  #pick only top 25
+  ngram3 <- ngram2[order(ngram2$Freq,decreasing = TRUE),][1:100,]
+  colnames(ngram3) <- c("String","Count")
+  ngram3
+}
+
+TwoGrams <- findNGrams(corpusDf, 2)
+ThreeGrams <- findNGrams(corpusDf, 3)
+FourGrams <- findNGrams(corpusDf, 4)
+```
+
+#Exploratory Data Analysis
+##Plotting WordCloud
+
+```{R}
+library(wordcloud)
+require(RColorBrewer)
+
+par(mfrow = c(1, 3))
+palette <- brewer.pal(8,"Dark2")
+
+wordcloud(TwoGrams[,1], TwoGrams[,2], min.freq =1, 
+          random.order = F, ordered.colors = F, colors=palette)
+text(x=0.5, y=0, "2-gram cloud")
+
+wordcloud(ThreeGrams[,1], ThreeGrams[,2], min.freq =1, 
+          random.order = F, ordered.colors = F, colors=palette)
+text(x=0.5, y=0, "3-gram cloud")
+
+wordcloud(FourGrams[,1], FourGrams[,2], min.freq =1, 
+          random.order = F, ordered.colors = F, colors=palette)
+text(x=0.5, y=0, "4-gram cloud")
+```
+
+##Histograms of the grams
+```{R}
+par(mfrow = c(1, 1))
+
+barplot(TwoGrams[1:20,2], cex.names=0.5, names.arg=TwoGrams[1:20,1], col="red", main="2-Grams", las=2)
+
+barplot(ThreeGrams[1:20,2], cex.names=0.5, names.arg=ThreeGrams[1:20,1], col="green", main="3-Grams", las=2)
+
+barplot(FourGrams[1:20,2], cex.names=0.5, names.arg=FourGrams[1:20,1], col="blue", main="4-Grams", las=2)
+```
+
+#Plan for Creating Prediction Algorithm and Application
+To train the model: Increase the number of documents (e.g. increase sample size) in order to have more 3- 4- and 5-grams.
+
+.Repeat the same process: Replace numbers and common abbreviations. Split sentences. Remove special characters (except apostrophes, for the reason mentioned before.) Tokenize the sentences and count words, bigrams, 3-grams, etc.
+
+.Drop words and n-grams of low frequency (too many and they add little value)
+
+.Do not try to predict numbers but try to predict words that may come after a number in general.
+
+.Do not worry too much about spelling errors. Consider using dictionary to check spelling error. Add terms that appear with some frequency to the dictuionary (even if not "official terms") if in practice people use them, we want to predict them. We would only drop terms that are not in the dictonary and have low frequency in our corpus. * Add rules to clean up emoticons
+
+.Train a prediction algorythm based on n-grams (e.g. either using a package with markov chain functionality or coding my own ad-hoc search functions.)
+
+.Calculate probabiliites, add 1, backtrack.
+
+.Do not remove any words (including stop words or even profanity words) from the list in order to avoid creating "holes" in the data that could lead to incorrect n-grams and incorrect prediction.
+.Use a standard list of profanity terms (available for download) to filter profanity terms before showing to the customer (but let them inside the database)
+
+.Repeat the process for other languages
+
+.Measure memory and time
+
+.Add capitalization business rules * Build separate model for capitalization (frequency of all caps vs. first cap when not at the begining of a sentence vs. lowercase)
+
+.Finally The application will be built in shiny.
